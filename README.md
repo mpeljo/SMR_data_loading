@@ -1,2 +1,2 @@
 # SMR_data_loading
-Load probabilistically-inverted SMR data into ROCKPROPS
+The SMR_Loading project contains code, config, outputs used to transform Surface Magnetic Resonance (SMR) probabilistic inversion subsurface total water values into Excel spreadsheet format. The Excel spreadsheet is used by Geoscience Australia's Bulk Loading Tool for Geological Databases to populate the ROCKPROPS and associated Oracle schemas with SMR data for external publication.
