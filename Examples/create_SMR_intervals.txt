@@ -1,0 +1,1 @@
+"\\prod.lan\active\proj\futurex\DCD\Data\Processed\Geophysics\SMR\results\scripts\create_SMR_intervals.py"

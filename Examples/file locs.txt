@@ -1,0 +1,7 @@
+\\prod.lan\active\proj\futurex\DCD\Data\Processed\Geophysics\SMR\results contains all the processed data
+
+"\\prod.lan\active\proj\futurex\DCD\Data\Processed\Geophysics\SMR"
+
+\\prod.lan\active\proj\futurex\DCD\Data\Processed\Geophysics\SMR\lasFiles
+
+
