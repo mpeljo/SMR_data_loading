@@ -1,5 +1,10 @@
 # populate_rockprops_loader.py
 # Matti Peljo   April 2024
+#
+# Updated May 2024.
+#   + Added ability to enter multiple Bayesian percentile water content
+#       values per SMR depth
+#   + Moved SMR_config.py to the Config folder
 
 # An application to transfer processed "Surface" Nuclear Magnetic
 #   Resonance (SMR) groundwater properties into Geoscience Australia's
@@ -21,24 +26,9 @@ import pandas as pd
 import numpy as np
 from openpyxl import Workbook, load_workbook
 
-# SMR_constants contains all the stuff that won't change in this data load,
+# SMR_config contains all the stuff that won't change in this data load,
 #   sorted by the tab (sheet) in the Oracle database Excel loader template.
-from SMR_constants import *
-
-
-# Locate template and input data config
-full_template_file = (
-    r".\Templates\Measure_Section-Samples-downhole intervals-rockprops_2023.10.XLSX"
-)
-smr_water_data_path = (
-    r"\\prod.lan\active\proj\futurex\DCD\Data\Processed\Geophysics\SMR\results\SMR_data_for_registration-8April2024.csv"
-)
-config_file = r".\Config\SMR_April2024_load_config.xlsx"
-
-# Output files
-test_output_file = "Test_ROCKPROPS_UDF_SMR_loader_April2024.XLSX"
-final_output_file = "ROCKPROPS_loader_UDF_SMR_acquired_AprilMay2023.XLSX"
-output_dir = r".\Outputs\\"
+from Config.SMR_config import *
 
 
 def round_up(n, decimals: int = 0):
@@ -103,21 +93,18 @@ def get_smr_df(smr_data_path: str) -> pd.DataFrame:
                 site_name, depth_from, depth_to, p5, p50, p95
                 
         Returns:
-            formatted_df: A dataframe with the input columns and calculated
-            uncertainty, with depths rounded to centimetre precision and
-            the other four numeric columns rounded to three decimal
-            places.
+            formatted_df: A dataframe with the input columns, with depths
+            rounded to centimetre precision.
     '''
     smr_df = pd.read_csv(smr_data_path)
-    smr_df["uncert"] = smr_df["p95"] - smr_df["p5"]
+    smr_df.rename(columns=lmh, inplace=True)
     formatted_df = smr_df.round(
         {
             "depth_from": 2,
             "depth_to": 2,
-            #"p5": 3,
-            #"p50": 3,
-            #"p95": 3,
-            #"uncert": 3,
+            #"BAYESIAN_LOW": 3,
+            #"BAYESIAN_MEDIAN": 3,
+            #"BAYESIAN_HIGH": 3,
         }
     )
     return formatted_df
@@ -208,7 +195,7 @@ def add_section_intervals(
     collection_name = site_name + COLLECTION_NAME_POSTFIX
     smr_data = get_smr_df(smr_water_data_path)
     # smr_data contains:
-    #   site_name, depth_from, depth_to, p5, p50, p95, uncert
+    #   site_name, depth_from, depth_to, p5, p50, p95
 
     # Get the subset of results that is relevant to the current site
     current_results = smr_data[(smr_data["site_name"] == site_name)]
@@ -334,45 +321,44 @@ def add_scalar_properties(
     '''
     scalar_properties = workbook["SCALAR PROPERTIES"]
 
-    measurement = round_up(smr_results_row["p50"], 4)
-    if np.isnan(measurement):
-        measurement = NULL_VALUE
-    
-    uncertainty = round_up(smr_results_row["uncert"], 4)
-    if np.isnan(uncertainty):
-        uncertainty = NULL_VALUE
+    for _, (_, bayesian_percentile) in enumerate(lmh.items()):
+        print(bayesian_percentile)
+        current_bayesian_constants = BAYESIAN_CONSTANTS[bayesian_percentile]
+        measurement = round_up(smr_results_row[bayesian_percentile], 4)
+        if np.isnan(measurement):
+            measurement = NULL_VALUE
 
-    new_row = [
-        sample_id,                  # SAMPLEID
-        "",                         # Sample number
-        "",                         # Resultno
-        "",                         # Resultid
-        ACCESS_CODE,                # Access code
-        "",                         # Confidential until date
-        QA_STATUS,                  # QA status
-        ORIGNO,                     # Originator
-        SOURCE_TYPE,                # Source type
-        SOURCE,                     # Source
-        LOAD_APPROVED,              # Load approved
-        PROCESS_TYPE,               # Process type (PROCESS.PROCESSNO)
-        PETROPHYSICAL_PROPERTY,     # Petrophysical property
-        measurement,                # Value
-        UOM,                        # UOM
-        RESULT_QUALIFIER,           # Result qualifier
-        UNCERTAINTY_TYPE,           # uncertainty type
-        uncertainty,                # UNCERTAINTY VALUE
-        UNCERTAINTY_UOM,            # UNCERTAINTY UOM
-        "",                         # RESULT DATE/TIME
-        "",                         # OBSERVATION LOCATION
-        SP_REMARKS,                 # REMARKS
-        NUMERICAL_CONFIDENCE,       # Numerical confidence
-        METADATA_QUALITY,           # Metadata quality
-        SUMMARY_CONFIDENCE,         # Summary confidence
-    ]
+        new_row = [
+            sample_id,                  # SAMPLEID
+            "",                         # Sample number
+            "",                         # Resultno
+            "",                         # Resultid
+            ACCESS_CODE,                # Access code
+            "",                         # Confidential until date
+            QA_STATUS,                  # QA status
+            ORIGNO,                     # Originator
+            SOURCE_TYPE,                # Source type
+            SOURCE,                     # Source
+            LOAD_APPROVED,              # Load approved
+            PROCESS_TYPE,               # Process type (PROCESS.PROCESSNO)
+            PETROPHYSICAL_PROPERTY,     # Petrophysical property
+            measurement,                # Value
+            UOM,                        # UOM
+            current_bayesian_constants["RESULT QUALIFIER"],     # Result qualifier
+            current_bayesian_constants["UNCERTAINTY TYPE"],     # uncertainty type
+            current_bayesian_constants["UNCERTAINTY VALUE"],    # UNCERTAINTY VALUE
+            current_bayesian_constants["UNCERTAINTY UOM"],      # UNCERTAINTY UOM
+            "",                         # RESULT DATE/TIME
+            "",                         # OBSERVATION LOCATION
+            current_bayesian_constants['SP_REMARKS'],                 # REMARKS
+            NUMERICAL_CONFIDENCE,       # Numerical confidence
+            METADATA_QUALITY,           # Metadata quality
+            SUMMARY_CONFIDENCE,         # Summary confidence
+        ]
 
-    #print(new_row)
-    scalar_properties.append(new_row)
-    print(f"Scalar properties current row count: {scalar_properties.max_row}")
+        #print(new_row)
+        scalar_properties.append(new_row)
+        print(f"Scalar properties current row count: {scalar_properties.max_row}")
 
     return workbook
 
@@ -415,6 +401,5 @@ def main(development_stage="test"):
 if __name__ == "__main__":
     # Set up input and output file locations based on development stage of
     #   this database product.
-    stage = "final"     # "test" or "final"
 
-    main(stage)
+    main(STAGE)
